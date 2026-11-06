@@ -595,6 +595,45 @@ fun AudioPlayerCard(selectedFile: Uri?) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp)) {
+            Surface(
+                color = Color(0xFF202C38),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth().height(190.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.MusicNote,
+                        contentDescription = "Album artwork",
+                        tint = Accent,
+                        modifier = Modifier.size(100.dp)
+                    )
+                }
+            }
+
+            val nowPlayingUri = playlistUris.firstOrNull() ?: selectedFile
+            val nowPlayingTitle = nowPlayingUri?.lastPathSegment
+                ?.substringAfterLast('/')
+                ?.substringBeforeLast('.')
+                ?: "Choose an audio file"
+
+            Text(
+                nowPlayingTitle,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+
+            Text(
+                "NOW PLAYING • MP3 MAX",
+                color = Accent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+
             Text(
                 "MP3 MAX PLAYER",
                 color = Accent,
