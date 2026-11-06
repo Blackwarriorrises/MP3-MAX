@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -634,6 +635,8 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                 fontWeight = FontWeight.Bold
             )
 
+            AudioVisualizer(isPlaying = playing)
+
             Text(
                 "MP3 MAX PLAYER",
                 color = Accent,
@@ -807,6 +810,60 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                     )
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+fun AudioVisualizer(isPlaying: Boolean) {
+    val transition = rememberInfiniteTransition(label = "visualizer")
+
+    val a by transition.animateFloat(
+        0.15f, 0.95f,
+        infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bar1"
+    )
+    val b by transition.animateFloat(
+        0.20f, 0.85f,
+        infiniteRepeatable(tween(570, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bar2"
+    )
+    val c by transition.animateFloat(
+        0.10f, 1.00f,
+        infiniteRepeatable(tween(360, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bar3"
+    )
+    val d by transition.animateFloat(
+        0.20f, 0.80f,
+        infiniteRepeatable(tween(510, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bar4"
+    )
+    val e by transition.animateFloat(
+        0.15f, 0.90f,
+        infiniteRepeatable(tween(470, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bar5"
+    )
+
+    val levels = if (isPlaying) listOf(a, b, c, d, e)
+                 else listOf(0.15f, 0.15f, 0.15f, 0.15f, 0.15f)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        levels.forEach { level ->
+            Surface(
+                modifier = Modifier
+                    .padding(horizontal = 3.dp)
+                    .width(6.dp)
+                    .height((8f + level * 34f).dp),
+                shape = RoundedCornerShape(50),
+                color = if (isPlaying) Accent else Color.Gray
+            ) {}
         }
     }
 }
