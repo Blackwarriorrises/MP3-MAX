@@ -30,6 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -341,6 +344,8 @@ fun MP3MaxScreen() {
 
             Spacer(Modifier.height(20.dp))
 
+            AudioPlayerCard(selectedFile = selectedFile)
+            Spacer(Modifier.height(20.dp))
             Text("MP3 MAX • AUDIO STUDIO",
                 color = Color.Gray, fontSize = 11.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -473,4 +478,147 @@ private fun downloadAudio(context: Context, input: String) {
         Toast.makeText(context, "Download failed: ${e.message}",
             Toast.LENGTH_LONG).show()
     }
+}
+
+
+@Composable
+fun AudioPlayerCard(selectedFile: Uri?) {
+    val context = LocalContext.current
+
+    val player = remember {
+        ExoPlayer.Builder(context).build()
+    }
+
+    var playing by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+    var duration by remember { mutableStateOf(0L) }
+    var currentPosition by remember { mutableStateOf(0L) }
+    var loaded by remember { mutableStateOf(false) }
+
+    DisposableEffect(player) {
+        onDispose {
+            player.release()
+        }
+    }
+
+    LaunchedEffect(player) {
+        while (true) {
+            playing = player.isPlaying
+            duration = player.duration.coerceAtLeast(0L)
+            currentPosition = player.currentPosition.coerceAtLeast(0L)
+
+            if (duration > 0L) {
+                progress = currentPosition.toFloat() / duration.toFloat()
+            }
+
+            delay(500)
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "MP3 MAX PLAYER",
+                color = Accent,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                if (loaded) "Audio ready to play" else "Select an audio file above",
+                color = Color.White,
+                fontSize = 13.sp
+            )
+
+            Slider(
+                value = progress.coerceIn(0f, 1f),
+                onValueChange = { progress = it },
+                onValueChangeFinished = {
+                    if (duration > 0L) {
+                        player.seekTo((duration * progress).toLong())
+                    }
+                },
+                enabled = loaded && duration > 0L
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(formatPlayerTime(currentPosition), color = Color.Gray)
+                Text(formatPlayerTime(duration), color = Color.Gray)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = {
+                        player.seekToPreviousMediaItem()
+                    },
+                    enabled = loaded
+                ) {
+                    Icon(
+                        Icons.Default.SkipPrevious,
+                        contentDescription = "Previous",
+                        tint = Accent
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        if (selectedFile != null && !loaded) {
+                            player.setMediaItem(MediaItem.fromUri(selectedFile))
+                            player.prepare()
+                            loaded = true
+                        }
+
+                        if (player.isPlaying) {
+                            player.pause()
+                        } else {
+                            player.play()
+                        }
+                    },
+                    enabled = selectedFile != null
+                ) {
+                    Icon(
+                        if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play or pause",
+                        tint = Accent,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        player.seekToNextMediaItem()
+                    },
+                    enabled = loaded
+                ) {
+                    Icon(
+                        Icons.Default.SkipNext,
+                        contentDescription = "Next",
+                        tint = Accent
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatPlayerTime(milliseconds: Long): String {
+    val totalSeconds = milliseconds / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
 }
