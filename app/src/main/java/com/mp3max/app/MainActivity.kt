@@ -1,215 +1,372 @@
 package com.mp3max.app
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AudioFile
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-
-private val Black = Color(0xFF090909)
-private val Panel = Color(0xFF171717)
-private val Red = Color(0xFFFF2638)
-private val Muted = Color(0xFFAAAAAA)
+import androidx.lifecycle.lifecycleScope
+import com.naman14.androidlame.LameBuilder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.io.OutputStream
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { Mp3MaxApp() }
-    }
-}
 
-@Composable
-fun Mp3MaxApp() {
-    var selectedUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedName by remember { mutableStateOf("No audio file selected") }
-    var bitrate by remember { mutableStateOf("320 kbps") }
-    var outputFormat by remember { mutableStateOf("MP3") }
-    var status by remember { mutableStateOf("Choose an audio file you own or are authorized to convert.") }
+        setContent {
+            var inputUri by remember { mutableStateOf<Uri?>(null) }
+            var fileName by remember { mutableStateOf("No file selected") }
+            var bitrate by remember { mutableIntStateOf(192) }
+            var status by remember { mutableStateOf("Choose a WAV file") }
 
-    val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            selectedUri = uri
-            selectedName = uri.lastPathSegment?.substringAfterLast('/') ?: "Selected audio"
-            status = "File selected. Choose an output format and bitrate."
-        }
-    }
-
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Red, background = Black, surface = Panel,
-            onBackground = Color.White, onSurface = Color.White
-        )
-    ) {
-        Scaffold(containerColor = Black) { padding ->
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(48.dp).background(Red, RoundedCornerShape(15.dp)),
-                        contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Default.MusicNote, null, tint = Color.White, modifier = Modifier.size(29.dp)) }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("MP3", fontSize = 25.sp, fontWeight = FontWeight.Black)
-                            Text(" MAX", color = Red, fontSize = 25.sp, fontWeight = FontWeight.Black)
-                        }
-                        Text("DOWNLOAD  •  CONVERT", color = Muted, fontSize = 10.sp, letterSpacing = 1.4.sp)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Icon(Icons.Default.Settings, "Settings", tint = Muted)
+            val picker = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    inputUri = uri
+                    fileName = uri.lastPathSegment ?: "WAV file selected"
+                    status = "Ready to convert"
                 }
+            }
 
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .background(Panel, RoundedCornerShape(22.dp)).padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("YOUR AUDIO WORKSPACE", color = Red, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text("Make your audio\nwork for you.", fontSize = 29.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
-                    Text("Convert files stored on your device. No account or cloud upload required.", color = Muted, fontSize = 13.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FeatureChip("320 kbps")
-                        FeatureChip("Offline-ready")
-                        FeatureChip("Private")
-                    }
-                }
+            val saver = rememberLauncherForActivityResult(
+                ActivityResultContracts.CreateDocument("audio/mpeg")
+            ) { outputUri ->
+                val source = inputUri
 
-                SectionTitle("AUDIO CONVERTER", Icons.Default.Sync)
-                Column(
-                    modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF343434), RoundedCornerShape(18.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { picker.launch(arrayOf("audio/*", "video/mp4", "video/*")) },
-                        modifier = Modifier.fillMaxWidth().height(58.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                    ) {
-                        Icon(Icons.Default.FolderOpen, null, tint = Red)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Choose audio or video file")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AudioFile, null, tint = Red)
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(selectedName, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                            Text(if (selectedUri == null) "WAV, FLAC, M4A, MP3 and supported video" else "Selected on this device", color = Muted, fontSize = 11.sp)
+                if (source != null && outputUri != null) {
+                    status = "Converting..."
+
+                    lifecycleScope.launch {
+                        status = withContext(Dispatchers.IO) {
+                            try {
+                                val input = contentResolver.openInputStream(source)
+                                    ?: error("Cannot read input file")
+
+                                val output = contentResolver.openOutputStream(outputUri)
+                                    ?: error("Cannot save output file")
+
+                                input.use { inputStream ->
+                                    output.use { outputStream ->
+                                        convertWavToMp3(
+                                            inputStream,
+                                            outputStream,
+                                            bitrate
+                                        )
+                                    }
+                                }
+
+                                "SUCCESS! MP3 saved."
+                            } catch (e: Exception) {
+                                "ERROR: ${e.message}"
+                            }
                         }
                     }
-                    HorizontalDivider(color = Color(0xFF333333))
-                    Text("OUTPUT FORMAT", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("MP3", "WAV", "M4A").forEach { format ->
-                            FilterChip(
-                                selected = outputFormat == format,
-                                onClick = { outputFormat = format },
-                                label = { Text(format) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Red,
-                                    selectedLabelColor = Color.White
+                }
+            }
+
+            MaterialTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        "MP3 MAX",
+                        style = MaterialTheme.typography.headlineLarge
+                    )
+
+                    Text("WAV to MP3 Converter")
+
+                    Button(
+                        onClick = {
+                            picker.launch(
+                                arrayOf(
+                                    "audio/wav",
+                                    "audio/x-wav",
+                                    "audio/wave"
                                 )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("SELECT WAV FILE")
+                    }
+
+                    Text(fileName)
+
+                    Text("Select MP3 bitrate")
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        listOf(128, 192, 256, 320).forEach { value ->
+                            FilterChip(
+                                selected = bitrate == value,
+                                onClick = { bitrate = value },
+                                label = { Text("$value") }
                             )
                         }
                     }
-                    if (outputFormat == "MP3") {
-                        Text("BITRATE", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("128 kbps", "192 kbps", "256 kbps", "320 kbps").forEach { rate ->
-                                FilterChip(
-                                    selected = bitrate == rate,
-                                    onClick = { bitrate = rate },
-                                    label = { Text(rate.substringBefore(' '), fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Red,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
-                            }
-                        }
-                    }
+
                     Button(
                         onClick = {
-                            status = if (selectedUri == null) {
-                                "Select a file first."
+                            if (inputUri == null) {
+                                status = "Please select a WAV file first."
                             } else {
-                                "The project UI is ready. The MP3 encoding engine must be integrated before export can run."
+                                saver.launch("MP3_MAX_Converted.mp3")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Red)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.Sync, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("CONVERT AUDIO", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Text("CONVERT TO MP3")
                     }
-                    Text(status, color = Muted, fontSize = 12.sp)
-                }
 
-                SectionTitle("AUTHORIZED DOWNLOADS", Icons.Default.Download)
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
-                    Text("Add downloads from sources that explicitly permit saving the audio.", fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(6.dp))
-                    Text("This starter does not scrape streaming services or bypass DRM. A source-specific official API or direct authorized file URL can be added in a later integration.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
-                }
+                    Text(status)
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.GraphicEq, null, tint = Red)
-                    Spacer(Modifier.width(8.dp))
-                    Text("MP3 MAX", fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.weight(1f))
-                    Text("Version 0.1 • Prototype", color = Muted, fontSize = 11.sp)
+                    Text(
+                        "Supports uncompressed 16-bit PCM WAV files. " +
+                            "Convert audio you own or have permission to use."
+                    )
                 }
-                Spacer(Modifier.height(12.dp))
             }
         }
     }
-}
 
-@Composable
-private fun FeatureChip(label: String) {
-    Surface(color = Color(0xFF292020), shape = RoundedCornerShape(50)) {
-        Text(label, color = Color(0xFFFFA2AA), fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+    private fun convertWavToMp3(
+        input: InputStream,
+        output: OutputStream,
+        bitrate: Int
+    ) {
+        val header = ByteArray(12)
+        readFully(input, header)
+
+        require(
+            String(header, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+            String(header, 8, 4, Charsets.US_ASCII) == "WAVE"
+        ) {
+            "Invalid WAV file"
+        }
+
+        var channels = 0
+        var sampleRate = 0
+        var bitsPerSample = 0
+        var dataSize = -1L
+
+        while (true) {
+            val chunkHeader = ByteArray(8)
+            if (!readFullyOrEnd(input, chunkHeader)) break
+
+            val chunkName = String(
+                chunkHeader,
+                0,
+                4,
+                Charsets.US_ASCII
+            )
+
+            val chunkSize = littleInt(chunkHeader, 4).toLong() and 0xffffffffL
+
+            when (chunkName) {
+                "fmt " -> {
+                    require(chunkSize >= 16 && chunkSize <= 65536) {
+                        "Unsupported WAV format header"
+                    }
+
+                    val fmt = ByteArray(chunkSize.toInt())
+                    readFully(input, fmt)
+
+                    val audioFormat = littleShort(fmt, 0)
+                    channels = littleShort(fmt, 2)
+                    sampleRate = littleInt(fmt, 4)
+                    bitsPerSample = littleShort(fmt, 14)
+
+                    require(audioFormat == 1) {
+                        "Only PCM WAV is supported"
+                    }
+                }
+
+                "data" -> {
+                    dataSize = chunkSize
+                    break
+                }
+
+                else -> skipFully(input, chunkSize)
+            }
+
+            if ((chunkSize and 1L) != 0L) {
+                skipFully(input, 1)
+            }
+        }
+
+        require(channels == 1 || channels == 2) {
+            "Only mono or stereo WAV is supported"
+        }
+
+        require(bitsPerSample == 16) {
+            "Only 16-bit WAV is supported"
+        }
+
+        require(sampleRate in 8000..48000) {
+            "Unsupported sample rate"
+        }
+
+        require(dataSize >= 0) {
+            "WAV audio data not found"
+        }
+
+        val encoder = LameBuilder()
+            .setInSampleRate(sampleRate)
+            .setOutChannels(channels)
+            .setOutBitrate(bitrate)
+            .setOutSampleRate(sampleRate)
+            .build()
+
+        val inputBuffer = ByteArray(8192)
+        val mp3Buffer = ByteArray(16384)
+        val samplesPerChannel = inputBuffer.size / (2 * channels)
+
+        var remaining = dataSize
+
+        try {
+            while (remaining >= 2L * channels) {
+                val wanted = minOf(
+                    inputBuffer.size.toLong(),
+                    remaining - (remaining % (2L * channels))
+                ).toInt()
+
+                val count = readSome(input, inputBuffer, wanted)
+                if (count <= 0) break
+
+                val usable = count - (count % (2 * channels))
+                if (usable == 0) break
+
+                val frames = usable / (2 * channels)
+                val left = ShortArray(frames)
+                val right = ShortArray(frames)
+
+                for (i in 0 until frames) {
+                    val offset = i * channels * 2
+                    left[i] = littleSample(inputBuffer, offset)
+
+                    right[i] = if (channels == 2) {
+                        littleSample(inputBuffer, offset + 2)
+                    } else {
+                        left[i]
+                    }
+                }
+
+                val encoded = encoder.encode(
+                    left,
+                    right,
+                    frames,
+                    mp3Buffer
+                )
+
+                if (encoded > 0) {
+                    output.write(mp3Buffer, 0, encoded)
+                }
+
+                remaining -= usable.toLong()
+            }
+
+            val flushed = encoder.flush(mp3Buffer)
+            if (flushed > 0) {
+                output.write(mp3Buffer, 0, flushed)
+            }
+
+            output.flush()
+        } finally {
+            encoder.close()
+        }
     }
-}
 
-@Composable
-private fun SectionTitle(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = Red, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(title, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.2.sp)
+    private fun readFully(input: InputStream, buffer: ByteArray) {
+        var offset = 0
+        while (offset < buffer.size) {
+            val count = input.read(buffer, offset, buffer.size - offset)
+            if (count < 0) error("Unexpected end of WAV file")
+            offset += count
+        }
+    }
+
+    private fun readFullyOrEnd(
+        input: InputStream,
+        buffer: ByteArray
+    ): Boolean {
+        var offset = 0
+
+        while (offset < buffer.size) {
+            val count = input.read(buffer, offset, buffer.size - offset)
+
+            if (count < 0) {
+                if (offset == 0) return false
+                error("Incomplete WAV chunk header")
+            }
+
+            offset += count
+        }
+
+        return true
+    }
+
+    private fun readSome(
+        input: InputStream,
+        buffer: ByteArray,
+        wanted: Int
+    ): Int {
+        var total = 0
+
+        while (total < wanted) {
+            val count = input.read(buffer, total, wanted - total)
+            if (count < 0) break
+            if (count == 0) continue
+            total += count
+        }
+
+        return total
+    }
+
+    private fun skipFully(input: InputStream, amount: Long) {
+        var remaining = amount
+
+        while (remaining > 0) {
+            val skipped = input.skip(remaining)
+
+            if (skipped > 0) {
+                remaining -= skipped
+            } else {
+                if (input.read() < 0) error("Unexpected end of WAV file")
+                remaining--
+            }
+        }
+    }
+
+    private fun littleShort(data: ByteArray, offset: Int): Int {
+        return (data[offset].toInt() and 255) or
+            ((data[offset + 1].toInt() and 255) shl 8)
+    }
+
+    private fun littleInt(data: ByteArray, offset: Int): Int {
+        return (data[offset].toInt() and 255) or
+            ((data[offset + 1].toInt() and 255) shl 8) or
+            ((data[offset + 2].toInt() and 255) shl 16) or
+            ((data[offset + 3].toInt() and 255) shl 24)
+    }
+
+    private fun littleSample(data: ByteArray, offset: Int): Short {
+        return littleShort(data, offset).toShort()
     }
 }
