@@ -487,6 +487,7 @@ private fun downloadAudio(context: Context, input: String) {
 
 
 
+
 @Composable
 fun AudioPlayerCard(selectedFile: Uri?) {
     val context = LocalContext.current
@@ -499,6 +500,36 @@ fun AudioPlayerCard(selectedFile: Uri?) {
     var duration by remember { mutableStateOf(0L) }
     var currentPosition by remember { mutableStateOf(0L) }
     var loaded by remember { mutableStateOf(false) }
+    var playlistUris by remember { mutableStateOf(emptyList<Uri>()) }
+
+    val playlistPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                }
+            }
+
+            playlistUris = uris
+
+            val items = uris.map { uri ->
+                MediaItem.fromUri(uri)
+            }
+
+            controller?.let { player ->
+                player.setMediaItems(items)
+                player.prepare()
+                player.play()
+                loaded = true
+            }
+        }
+    }
 
     DisposableEffect(context) {
         val token = SessionToken(
@@ -512,7 +543,7 @@ fun AudioPlayerCard(selectedFile: Uri?) {
             {
                 try {
                     controller = future.get()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     Toast.makeText(
                         context,
                         "Player connection failed",
@@ -528,9 +559,9 @@ fun AudioPlayerCard(selectedFile: Uri?) {
         }
     }
 
-    LaunchedEffect(controller, selectedFile) {
+    LaunchedEffect(controller, selectedFile, playlistUris) {
         val player = controller
-        if (player != null && selectedFile != null) {
+        if (player != null && selectedFile != null && playlistUris.isEmpty()) {
             player.setMediaItem(MediaItem.fromUri(selectedFile))
             player.prepare()
             loaded = true
@@ -567,14 +598,47 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                 fontWeight = FontWeight.Bold
             )
 
+            Spacer(Modifier.height(10.dp))
+
+            Button(
+                onClick = {
+                    playlistPicker.launch(arrayOf("audio/*"))
+                },
+                enabled = controller != null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Accent
+                )
+            ) {
+                Icon(
+                    Icons.Default.QueueMusic,
+                    contentDescription = null,
+                    tint = Color.Black
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("SELECT PLAYLIST FILES", color = Color.Black)
+            }
+
+            Text(
+                "${playlistUris.size} tracks in playlist",
+                color = Accent,
+                fontSize = 13.sp
+            )
+
+            playlistUris.take(8).forEachIndexed { index, uri ->
+                Text(
+                    "${index + 1}. ${uri.lastPathSegment ?: "Audio track"}",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    maxLines = 1
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
 
             Text(
-                when {
-                    controller == null -> "Connecting player..."
-                    loaded -> "Audio ready to play"
-                    else -> "Select an audio file above"
-                },
+                if (loaded) "Audio ready to play"
+                else "Select an audio file or playlist",
                 color = Color.White,
                 fontSize = 13.sp
             )
@@ -625,7 +689,8 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                     enabled = loaded
                 ) {
                     Icon(
-                        if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (playing) Icons.Default.Pause
+                        else Icons.Default.PlayArrow,
                         contentDescription = "Play or pause",
                         tint = Accent,
                         modifier = Modifier.size(48.dp)
