@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
+import android.content.ComponentName
+import androidx.media3.common.C
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import java.util.concurrent.Executor
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -481,36 +486,70 @@ private fun downloadAudio(context: Context, input: String) {
 }
 
 
+
 @Composable
 fun AudioPlayerCard(selectedFile: Uri?) {
     val context = LocalContext.current
 
-    val player = remember {
-        ExoPlayer.Builder(context).build()
+    var controller by remember {
+        mutableStateOf<MediaController?>(null)
     }
-
     var playing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     var duration by remember { mutableStateOf(0L) }
     var currentPosition by remember { mutableStateOf(0L) }
     var loaded by remember { mutableStateOf(false) }
 
-    DisposableEffect(player) {
+    DisposableEffect(context) {
+        val token = SessionToken(
+            context,
+            ComponentName(context, MP3MaxPlaybackService::class.java)
+        )
+
+        val future = MediaController.Builder(context, token).buildAsync()
+
+        future.addListener(
+            {
+                try {
+                    controller = future.get()
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        context,
+                        "Player connection failed",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            },
+            Executor { command -> command.run() }
+        )
+
         onDispose {
-            player.release()
+            MediaController.releaseFuture(future)
         }
     }
 
-    LaunchedEffect(player) {
+    LaunchedEffect(controller, selectedFile) {
+        val player = controller
+        if (player != null && selectedFile != null) {
+            player.setMediaItem(MediaItem.fromUri(selectedFile))
+            player.prepare()
+            loaded = true
+        }
+    }
+
+    LaunchedEffect(controller) {
         while (true) {
-            playing = player.isPlaying
-            duration = player.duration.coerceAtLeast(0L)
-            currentPosition = player.currentPosition.coerceAtLeast(0L)
+            val player = controller
+            if (player != null) {
+                playing = player.isPlaying
+                duration = player.duration.takeIf { it != C.TIME_UNSET }
+                    ?.coerceAtLeast(0L) ?: 0L
+                currentPosition = player.currentPosition.coerceAtLeast(0L)
 
-            if (duration > 0L) {
-                progress = currentPosition.toFloat() / duration.toFloat()
+                if (duration > 0L) {
+                    progress = currentPosition.toFloat() / duration.toFloat()
+                }
             }
-
             delay(500)
         }
     }
@@ -531,7 +570,11 @@ fun AudioPlayerCard(selectedFile: Uri?) {
             Spacer(Modifier.height(8.dp))
 
             Text(
-                if (loaded) "Audio ready to play" else "Select an audio file above",
+                when {
+                    controller == null -> "Connecting player..."
+                    loaded -> "Audio ready to play"
+                    else -> "Select an audio file above"
+                },
                 color = Color.White,
                 fontSize = 13.sp
             )
@@ -541,7 +584,7 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                 onValueChange = { progress = it },
                 onValueChangeFinished = {
                     if (duration > 0L) {
-                        player.seekTo((duration * progress).toLong())
+                        controller?.seekTo((duration * progress).toLong())
                     }
                 },
                 enabled = loaded && duration > 0L
@@ -563,9 +606,7 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = {
-                        player.seekToPreviousMediaItem()
-                    },
+                    onClick = { controller?.seekToPreviousMediaItem() },
                     enabled = loaded
                 ) {
                     Icon(
@@ -577,19 +618,11 @@ fun AudioPlayerCard(selectedFile: Uri?) {
 
                 IconButton(
                     onClick = {
-                        if (selectedFile != null && !loaded) {
-                            player.setMediaItem(MediaItem.fromUri(selectedFile))
-                            player.prepare()
-                            loaded = true
-                        }
-
-                        if (player.isPlaying) {
-                            player.pause()
-                        } else {
-                            player.play()
+                        controller?.let {
+                            if (it.isPlaying) it.pause() else it.play()
                         }
                     },
-                    enabled = selectedFile != null
+                    enabled = loaded
                 ) {
                     Icon(
                         if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -600,9 +633,7 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                 }
 
                 IconButton(
-                    onClick = {
-                        player.seekToNextMediaItem()
-                    },
+                    onClick = { controller?.seekToNextMediaItem() },
                     enabled = loaded
                 ) {
                     Icon(
