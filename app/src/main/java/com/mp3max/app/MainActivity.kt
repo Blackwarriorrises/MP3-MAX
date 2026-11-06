@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
 import android.content.ComponentName
@@ -501,6 +502,9 @@ fun AudioPlayerCard(selectedFile: Uri?) {
     var currentPosition by remember { mutableStateOf(0L) }
     var loaded by remember { mutableStateOf(false) }
     var playlistUris by remember { mutableStateOf(emptyList<Uri>()) }
+    var shuffleEnabled by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+
 
     val playlistPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -705,6 +709,62 @@ fun AudioPlayerCard(selectedFile: Uri?) {
                         Icons.Default.SkipNext,
                         contentDescription = "Next",
                         tint = Accent
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = {
+                        shuffleEnabled = !shuffleEnabled
+                        controller?.shuffleModeEnabled = shuffleEnabled
+                    },
+                    enabled = loaded
+                ) {
+                    Icon(
+                        Icons.Default.Shuffle,
+                        contentDescription = "Shuffle",
+                        tint = if (shuffleEnabled) Accent else Color.Gray
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        "SHUFFLE",
+                        color = if (shuffleEnabled) Accent else Color.Gray
+                    )
+                }
+
+                TextButton(
+                    onClick = {
+                        repeatMode = when (repeatMode) {
+                            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                        controller?.repeatMode = repeatMode
+                    },
+                    enabled = loaded
+                ) {
+                    Icon(
+                        Icons.Default.Repeat,
+                        contentDescription = "Repeat",
+                        tint = if (repeatMode == Player.REPEAT_MODE_OFF)
+                            Color.Gray else Accent
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        when (repeatMode) {
+                            Player.REPEAT_MODE_ALL -> "REPEAT ALL"
+                            Player.REPEAT_MODE_ONE -> "REPEAT ONE"
+                            else -> "REPEAT OFF"
+                        },
+                        color = if (repeatMode == Player.REPEAT_MODE_OFF)
+                            Color.Gray else Accent
                     )
                 }
             }
