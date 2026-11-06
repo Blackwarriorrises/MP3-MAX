@@ -4,6 +4,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
